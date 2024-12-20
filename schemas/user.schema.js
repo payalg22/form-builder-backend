@@ -3,17 +3,21 @@ const { model, Schema } = mongoose;
 
 const userSchema = new Schema({
   name: {
-    type: "String",
+    type: String,
     required: true,
   },
   email: {
-    type: "String",
+    type: String,
     required: true,
     unique: true,
   },
   password: {
-    type: "String",
+    type: String,
     required: true,
+  },
+  isDarkTheme: {
+    type: Boolean,
+    default: true,
   },
   createdAt: {
     type: "Date",

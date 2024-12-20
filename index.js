@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const indexRouter = require("./routes/index");
 const userRouter = require("./routes/user");
+const workspaceRouter = require("./routes/workspace");
 
 const app = express();
 dotenv.config();
@@ -14,6 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use("/api/v1", indexRouter);
 app.use("/api/v1/user", userRouter);
+app.use("/api/v1/workspace", workspaceRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

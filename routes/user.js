@@ -4,8 +4,10 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { User } = require("../schemas/user.schema");
 const verify = require("../middleware/auth");
+const { Workspace } = require("../schemas/workspace.schema");
 
 //REGISTER ROUTE
+//tested and working
 router.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -18,14 +20,20 @@ router.post("/register", async (req, res) => {
   }
 
   const hashedPass = await bcrypt.hash(password, 10);
-
   const user = new User({
     name,
     email,
     password: hashedPass,
   });
-
   const response = await user.save();
+
+  if (response._id) {
+    const workspace = new Workspace({
+      owner: response._id,
+      folders: [{ name: response._id.toString() }],
+    });
+    await workspace.save();
+  }
 
   return res.status(201).json({
     message: "User created successfully",
@@ -34,6 +42,7 @@ router.post("/register", async (req, res) => {
 });
 
 //LOGIN ROUTE
+//tested and working
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
