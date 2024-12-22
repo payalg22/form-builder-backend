@@ -31,26 +31,30 @@ router.get("/", verify, async (req, res) => {
 router.get("/data/:id", verify, async (req, res) => {
   const { id } = req.params;
   const { user } = req;
+  try {
+    let workspace = await Workspace.findById(id).select("-__v");
+    if (!workspace) {
+      return res.status(404).json({
+        message: "Workspace not found",
+      });
+    }
 
-  let workspace = await Workspace.findById(id).select("-__v");
-  if (!workspace) {
-    return res.status(404).json({
-      message: "Workspace not found",
-    });
+    const isAuthUser = isAuth(user, workspace);
+    if (!isAuthUser) {
+      return res.status(403).json({
+        message: "You're not authorised to view this workspace",
+      });
+    }
+
+    workspace.sharedTo = workspace.sharedTo.find(
+      (item) => item.user.toString() === user
+    );
+
+    return res.status(200).json(workspace);
+  } catch (error) {
+    console.log(error);
+    return res.status(500);
   }
-
-  const isAuthUser = isAuth(user, workspace);
-  if (!isAuthUser) {
-    return res.status(403).json({
-      message: "You're not authorised to view this workspace",
-    });
-  }
-
-  workspace.sharedTo = workspace.sharedTo.find(
-    (item) => item.user.toString() === user
-  );
-
-  return res.status(200).json(workspace);
 });
 
 //SHARE WORKSPACE
@@ -149,7 +153,7 @@ router.delete("/folder/:workspace/:folder", verify, async (req, res) => {
       message: "You're not authorised to edit this workspace",
     });
   }
-//check if folder exists
+  //check if folder exists
   const isFolder = data.folders.findIndex(
     (item) => item._id.toString() === folder
   );
