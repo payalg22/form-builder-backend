@@ -4,12 +4,13 @@ const router = express.Router();
 const verify = require("../middleware/auth");
 const { Workspace } = require("../schemas/workspace.schema");
 const { isAuth, isEditor } = require("../utils/isAuth");
+const { User } = require("../schemas/user.schema");
 
 //GET WORKSPACE LIST FOR A USER
 //working, tested for all
 router.get("/", verify, async (req, res) => {
   const { user } = req;
-  const id = new mongoose.Types.ObjectId(user);
+  const id = new mongoose.Types.ObjectId(`${user}`);
 
   let workspaces = await Workspace.find({
     $or: [{ owner: id }, { "sharedTo.user": id }],
@@ -19,9 +20,17 @@ router.get("/", verify, async (req, res) => {
       path: "owner",
       select: "name",
     });
-  workspaces = workspaces.map((item) => {
-    return { _id: item._id, owner: item.owner.name };
-  });
+  //   workspaces = workspaces.map((item) => {
+  //     return { _id: item._id, owner: item.owner.name };
+  //   });
+  if (workspaces.length === 0) {
+    const workspace = new Workspace({
+      owner: id,
+      folders: [{ name: user.toString() }],
+    });
+    await workspace.save();
+    workspaces = [workspace];
+  }
 
   return res.json(workspaces);
 });
@@ -58,51 +67,60 @@ router.get("/data/:id", verify, async (req, res) => {
 });
 
 //SHARE WORKSPACE
-//tested, working p.s.- just check other case
-router.post("/share/:id", verify, async (req, res) => {
-  const { owner, recepient, isEditor } = req.body;
+//tested, working
+router.patch("/share/:id", verify, async (req, res) => {
+  const { email, isEditor } = req.body;
   const { id } = req.params;
-
-  let workspace = await Workspace.findById(id);
-  if (!workspace) {
-    return res.status(404).json({
-      message: "Workspace not found",
-    });
-  }
-  //TODO: check if owner or recepient is sharing the workspace
-  //if recepient can share the workspace, then use isAuth() and then remove lines 22 to 24, so owner id chan be shared
-  //no need to get owner, just get user from req and check
-  if (workspace.owner.toString() !== owner) {
-    return res.status(403).json({
-      message: "You're not authorised to share this workspace",
-    });
-  }
-
-  const isMember = workspace.sharedTo.findIndex(
-    (person) => person.user.toString() === recepient
-  );
-  //Check if workspace is already shared
-  if (isMember !== -1) {
-    //if the access type has changed, then update
-    if (workspace.sharedTo[isMember].isEditor.toString() == isEditor) {
-      return res.status(400).json({
-        message: "User already added",
+  try {
+    let recepient = await User.findOne({ email }).select("_id email");
+    if (!recepient) {
+      return res.status(404).json({
+        message: "User not found",
       });
     }
-    workspace.sharedTo[isMember].isEditor = isEditor;
+
+    let workspace = await Workspace.findById(id);
+    if (!workspace) {
+      return res.status(404).json({
+        message: "Workspace not found",
+      });
+    }
+
+    //   if (workspace.owner.toString() !== owner) {
+    //     return res.status(403).json({
+    //       message: "You're not authorised to share this workspace",
+    //     });
+    //   }
+
+    const isMember = workspace.sharedTo.findIndex(
+      (person) => person.user.toString() === recepient._id.toString()
+    );
+    //Check if workspace is already shared
+    if (isMember !== -1) {
+      //if the access type has changed, then update
+      if (workspace.sharedTo[isMember].isEditor.toString() == isEditor) {
+        return res.status(400).json({
+          message: "User already added",
+        });
+      }
+      workspace.sharedTo[isMember].isEditor = isEditor;
+      await workspace.save();
+      return res.status(200).json({
+        message: "Workspace shared successfully",
+      });
+    }
+    //adding the member to sharedTo array
+    const member = { user: recepient._id, isEditor };
+    workspace.sharedTo.push(member);
     await workspace.save();
-    return res.status(201).json({
+
+    return res.status(200).json({
       message: "Workspace shared successfully",
     });
+  } catch (error) {
+    console.log(error);
+    return res.status(500);
   }
-  //adding the member to sharedTo array
-  const member = { user: new mongoose.Types.ObjectId(recepient), isEditor };
-  workspace.sharedTo.push(member);
-  await workspace.save();
-
-  return res.status(201).json({
-    message: "Workspace shared successfully",
-  });
 });
 
 //CREATE A NEW FOLDER
@@ -113,17 +131,23 @@ router.post("/folder/new", verify, async (req, res) => {
 
   let data = await Workspace.findById(workspace);
 
+  if (!workspace) {
+    return res.status(404).json({
+      message: "Workspace not found",
+    });
+  }
+
   const isAuthUser = isAuth(user, data);
 
   //check if user is authorised to edit
-  if (!isAuthUser || !isAuthUser.isEditor) {
+  if (!isAuthUser && !isAuthUser.isEditor) {
     return res.status(403).json({
       message: "You're not authorised to edit this workspace",
     });
   }
 
   const isFolder = data.folders.findIndex(
-    (item) => item.name.toLowerCase() === foldername.toLowerCase()
+    (item) => item.name.trim().toLowerCase() === foldername.toLowerCase().trim()
   );
   if (isFolder !== -1) {
     return res.status(400).json({
@@ -148,7 +172,7 @@ router.delete("/folder/:workspace/:folder", verify, async (req, res) => {
 
   const isAuthUser = isAuth(user, data);
   //check if user is authorised to edit
-  if (!isAuthUser || !isAuthUser.isEditor) {
+  if (!isAuthUser && !isAuthUser.isEditor) {
     return res.status(403).json({
       message: "You're not authorised to edit this workspace",
     });

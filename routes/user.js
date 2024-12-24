@@ -11,34 +11,42 @@ const { Workspace } = require("../schemas/workspace.schema");
 router.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
 
-  const isUser = await User.findOne({ email });
+  try {
+    const isUser = await User.findOne({ email });
 
-  if (isUser) {
-    return res.status(400).json({
-      message: "User already exists. Please login",
+    if (isUser) {
+      return res.status(400).json({
+        message: "User already exists. Please login",
+      });
+    }
+
+    const hashedPass = await bcrypt.hash(password, 10);
+    const user = new User({
+      name,
+      email,
+      password: hashedPass,
     });
-  }
+    const response = await user.save();
 
-  const hashedPass = await bcrypt.hash(password, 10);
-  const user = new User({
-    name,
-    email,
-    password: hashedPass,
-  });
-  const response = await user.save();
-
-  if (response._id) {
     const workspace = new Workspace({
       owner: response._id,
       folders: [{ name: response._id.toString() }],
     });
     await workspace.save();
-  }
+    //Creating token
+    const payload = { id: response._id };
+    const token = jwt.sign(payload, process.env.JWT_SECRET);
 
-  return res.status(201).json({
-    message: "User created successfully",
-    id: response._id,
-  });
+    return res.status(201).json({
+      message: "User created successfully",
+      token,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
 });
 
 //LOGIN ROUTE
@@ -69,7 +77,7 @@ router.post("/login", async (req, res) => {
   });
 });
 
-//UPDATE ROUTE
+//UPDATE USER ROUTE
 router.put("/update", verify, async (req, res) => {
   const { name, email, oldPassword, newPassword } = req.body;
   const { user } = req;
@@ -87,7 +95,7 @@ router.put("/update", verify, async (req, res) => {
   if (newPassword) {
     const isValidPass = await bcrypt.compare(oldPassword, userData.password);
     if (!isValidPass) {
-      return res.status(400).json({
+      return res.status(401).json({
         message: "Invalid password, please try again",
       });
     }
@@ -115,7 +123,9 @@ router.put("/update", verify, async (req, res) => {
 router.get("/", verify, async (req, res) => {
   const { user } = req;
 
-  const userInfo = await User.findById(user).select("-password -__v");
+  const userInfo = await User.findById(user).select(
+    "-password -__v -createdAt"
+  );
 
   if (!userInfo) {
     return res.status(404).json({

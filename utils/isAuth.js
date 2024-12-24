@@ -3,6 +3,7 @@ function isAuth(userid, workspace) {
     (item) => item.user.toString() === userid.toString()
   );
   const isOwner = workspace.owner.toString() === userid.toString();
+  
   if(!isOwner && isShared === undefined){
     return false;
   }

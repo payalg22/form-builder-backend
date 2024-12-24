@@ -32,6 +32,7 @@ const workspaceSchema = new Schema({
 });
 
 workspaceSchema.index({ _id: 1, "folders.name": 1 }, { unique: true });
+
 const Workspace = new model("Workspace", workspaceSchema);
 
 module.exports = { Workspace };
