@@ -157,4 +157,22 @@ router.get("/isuser/:id", async (req, res) => {
   return res.status(200);
 });
 
+//CHANGE THEME
+router.put("/theme/:theme", verify, async (req, res) => {
+  const { user } = req;
+  const { theme } = req.params;
+
+  let userInfo = await User.findById(user).select("-password -createdAt -__v");
+  if (!userInfo) {
+    return res.status(404).json({
+      message: "User not found",
+    });
+  }
+
+  userInfo.isDarkTheme = theme === "true" ? true : false;
+  userInfo = await userInfo.save();
+
+  return res.status(200).json(userInfo);
+});
+
 module.exports = router;

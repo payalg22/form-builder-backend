@@ -1,23 +1,48 @@
 const mongoose = require("mongoose");
 const { model, Schema, SchemaTypes } = mongoose;
-//const { Workspace } = require("./workspace.schema");
+const { User } = require("./user.schema");
 
-// const formSchema = new Schema({
-//   name: {
-//     type: String,
-//     required: true,
-//   },
-//   folder: {
-//     type: SchemaTypes.ObjectId,
-//     ref: Workspace,
-//     required: true,
-//   },
-//   createdAt: {
-//     type: Date,
-//     default: Date.now,
-//   },
-// });
+const fieldSchema = new Schema({
+  label: String,
+  placeholder: String,
+  inputType: {
+    type: String,
+    enum: [
+      "bubble",
+      "image",
+      "date",
+      "text",
+      "number",
+      "email",
+      "tel",
+      "rating",
+      "submit",
+    ],
+  },
+});
 
-// const Form = new model("Form", formSchema);
+const formSchema = new Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  creator: {
+    type: SchemaTypes.ObjectId,
+    ref: User,
+    required: true,
+  },
+  folderId: {
+    type: String,
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  views: { type: Number, default: 0 },
+  fields: [fieldSchema],
+});
 
-// module.exports = { Form };
+const Form = new model("Form", formSchema);
+
+module.exports = { Form };

@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const router = express.Router();
 const verify = require("../middleware/auth");
 const { Workspace } = require("../schemas/workspace.schema");
-const { isAuth, isEditor } = require("../utils/isAuth");
+const { isAuth } = require("../utils/isAuth");
 const { User } = require("../schemas/user.schema");
 
 //GET WORKSPACE LIST FOR A USER
@@ -195,11 +195,5 @@ router.delete("/folder/:workspace/:folder", verify, async (req, res) => {
   });
 });
 
-//GET A SPECIFIC FOLDER FOR USER -- let's try n move this to form routes to
-//directly fetch forms using folder id
-// router.get("/folder/:id", verify, async(req, res) => {
-//     const {id} = req.params;
-
-// })
 
 module.exports = router;
