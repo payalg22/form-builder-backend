@@ -32,13 +32,11 @@ router.post("/new", verify, async (req, res) => {
   const { user } = req;
   const { folderId, name, owner } = req.body;
 
-  //If the owner is not the one creating the form, user id should be received
-  const creator = owner
-    ? new mongoose.Types.ObjectId(`${owner}`)
-    : new mongoose.Types.ObjectId(`${user}`);
-  const newId = new mongoose.Types.ObjectId(`${folderId}`);
-
   try {
+    //If the owner is not the one creating the form, user id should be received
+    const creator = new mongoose.Types.ObjectId(`${owner}`);
+    const newId = new mongoose.Types.ObjectId(`${folderId}`);
+
     //Check if folder exists
     const isFolder = await Workspace.findOne(
       { "folders._id": newId },
@@ -71,7 +69,7 @@ router.post("/new", verify, async (req, res) => {
 
     await form.save();
 
-    return res.status(200).json({
+    return res.status(201).json({
       message: "Form created",
     });
   } catch (err) {
@@ -83,7 +81,6 @@ router.post("/new", verify, async (req, res) => {
 });
 
 //Edit a form -- add fields
-//TODO : test
 router.patch("/edit/:id", verify, async (req, res) => {
   const { fields, name } = req.body;
   const { user } = req;
@@ -107,7 +104,7 @@ router.patch("/edit/:id", verify, async (req, res) => {
     if (name && name !== form.name) {
       form.name = name;
     }
-    form.fields.push(...fields);
+    form.fields = fields;
     form.save();
 
     return res.status(201).json({
@@ -132,7 +129,7 @@ router.get("/", async (req, res) => {
         message: "Form not found",
       });
     }
-    //Increasing views
+    //Incrementing views
     if (mode === "view") {
       form.views += 1;
       form.save();
@@ -171,10 +168,6 @@ router.delete("/:id", verify, async (req, res) => {
   }
 });
 
-router.get("/analytics/:id", verify, async (req, res) => {
-    
-});
-
-
+router.get("/analytics/:id", verify, async (req, res) => {});
 
 module.exports = router;
