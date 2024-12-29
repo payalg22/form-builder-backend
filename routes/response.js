@@ -6,25 +6,25 @@ const { Form } = require("../schemas/form.schema");
 const { Response } = require("../schemas/response.schema");
 
 //TODO: test all
-router.get("/form/:id", verify, async (req, res) => {
+router.get("/analytics/:id", verify, async (req, res) => {
   const { id } = req.params;
   const formId = new mongoose.Types.ObjectId(`${id}`);
   try {
     const responses = await Response.find({ form: formId }).select("-__v");
-    const form = await Form.finById(formId);
+    const form = await Form.findById(formId);
 
-    if (!responses.length()) {
+    if (!responses.length) {
       return res.status(404).json({
         message: "No responses found",
       });
     }
 
-    const starts = responses.length();
-    const totalFields = form.fields.length();
+    const starts = responses.length;
+    const totalFields = form.fields.length;
     const completedRes = responses.filter((response) => {
-      return response.fields.length() === totalFields;
+      return response.fields.length === totalFields;
     });
-    const completed = completedRes.length();
+    const completed = completedRes.length;
 
     return res.status(200).json({
       responses,
@@ -72,9 +72,9 @@ router.put("/edit/:id", async (req, res) => {
   const { id } = req.params;
   const { field } = req.body;
   try {
-    let response = await Form.findById(id);
+    let response = await Response.findById(id);
 
-    if (!Response) {
+    if (!response) {
       return res.status(404).json({
         message: "Response not added",
       });

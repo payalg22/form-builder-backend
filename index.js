@@ -6,6 +6,7 @@ const indexRouter = require("./routes/index");
 const userRouter = require("./routes/user");
 const formRouter = require("./routes/form");
 const workspaceRouter = require("./routes/workspace");
+const responseRouter = require("./routes/response");
 
 const app = express();
 dotenv.config();
@@ -18,6 +19,7 @@ app.use("/api/v1", indexRouter);
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/workspace", workspaceRouter);
 app.use("/api/v1/form", formRouter);
+app.use("/api/v1/response", responseRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

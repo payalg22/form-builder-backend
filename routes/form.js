@@ -122,6 +122,12 @@ router.patch("/edit/:id", verify, async (req, res) => {
 router.get("/", async (req, res) => {
   const { mode, id } = req.query;
   try {
+    const isValidId = mongoose.isValidObjectId(id);
+    if (!isValidId) {
+      return res.status(400).json({
+        message: "Invalid form Id",
+      });
+    }
     let form = await Form.findById(id).select("name fields views");
 
     if (!form) {
@@ -161,7 +167,7 @@ router.delete("/:id", verify, async (req, res) => {
       message: "Form deleted successfully",
     });
   } catch (error) {
-    console.error(err);
+    console.error(error);
     return res.status(500).json({
       message: "Something went wrong",
     });
