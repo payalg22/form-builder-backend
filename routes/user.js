@@ -112,11 +112,9 @@ router.put("/update", verify, async (req, res) => {
     };
   }
 
-  const response = await User.findByIdAndUpdate(user, data, { new: true });
+  const response = await User.findByIdAndUpdate(user, data, { new: true, select: "name email" });
 
-  return res.status(201).json({
-    message: "User details updated successfully",
-  });
+  return res.status(201).json(response);
 });
 
 //GET USER DETAILS
