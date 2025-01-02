@@ -5,39 +5,39 @@ const verify = require("../middleware/auth");
 const { Workspace } = require("../schemas/workspace.schema");
 const { isAuth } = require("../utils/isAuth");
 const { User } = require("../schemas/user.schema");
+const isValidId = require("../middleware/validate");
 
 //GET WORKSPACE LIST FOR A USER
-//working, tested for all
 router.get("/", verify, async (req, res) => {
   const { user } = req;
-  const id = new mongoose.Types.ObjectId(`${user}`);
+  try {
+    const id = new mongoose.Types.ObjectId(`${user}`);
 
-  let workspaces = await Workspace.find({
-    $or: [{ owner: id }, { "sharedTo.user": id }],
-  })
-    .select("owner")
-    .populate({
-      path: "owner",
-      select: "name",
-    });
-  //   workspaces = workspaces.map((item) => {
-  //     return { _id: item._id, owner: item.owner.name };
-  //   });
-  if (workspaces.length === 0) {
-    const workspace = new Workspace({
-      owner: id,
-      folders: [{ name: user.toString() }],
-    });
-    await workspace.save();
-    workspaces = [workspace];
+    let workspaces = await Workspace.find({
+      $or: [{ owner: id }, { "sharedTo.user": id }],
+    })
+      .select("owner")
+      .populate({
+        path: "owner",
+        select: "name",
+      });
+    if (workspaces.length === 0) {
+      const workspace = new Workspace({
+        owner: id,
+        folders: [{ name: user.toString() }],
+      });
+      await workspace.save();
+      workspaces = [workspace];
+    }
+    return res.json(workspaces);
+  } catch (err) {
+    console.log(err);
+    return res.status(500);
   }
-
-  return res.json(workspaces);
 });
 
 //GET A PARTICULAR WORKSPACE : folder list
-//Working, tested
-router.get("/data/:id", verify, async (req, res) => {
+router.get("/data/:id", verify, isValidId, async (req, res) => {
   const { id } = req.params;
   const { user } = req;
   try {
@@ -67,8 +67,7 @@ router.get("/data/:id", verify, async (req, res) => {
 });
 
 //SHARE WORKSPACE
-//tested, working
-router.patch("/share/:id", verify, async (req, res) => {
+router.patch("/share/:id", verify, isValidId, async (req, res) => {
   const { email, isEditor } = req.body;
   const { id } = req.params;
   try {
@@ -85,12 +84,6 @@ router.patch("/share/:id", verify, async (req, res) => {
         message: "Workspace not found",
       });
     }
-
-    //   if (workspace.owner.toString() !== owner) {
-    //     return res.status(403).json({
-    //       message: "You're not authorised to share this workspace",
-    //     });
-    //   }
 
     const isMember = workspace.sharedTo.findIndex(
       (person) => person.user.toString() === recepient._id.toString()
@@ -124,43 +117,48 @@ router.patch("/share/:id", verify, async (req, res) => {
 });
 
 //CREATE A NEW FOLDER
-//working, tested for all
 router.post("/folder/new", verify, async (req, res) => {
   const { workspace, foldername } = req.body;
   const { user } = req;
 
-  let data = await Workspace.findById(workspace);
+  try {
+    let data = await Workspace.findById(workspace);
 
-  if (!workspace) {
-    return res.status(404).json({
-      message: "Workspace not found",
+    if (!workspace) {
+      return res.status(404).json({
+        message: "Workspace not found",
+      });
+    }
+
+    const isAuthUser = isAuth(user, data);
+
+    //check if user is authorised to edit
+    if (!isAuthUser && !isAuthUser.isEditor) {
+      return res.status(403).json({
+        message: "You're not authorised to edit this workspace",
+      });
+    }
+
+    const isFolder = data.folders.findIndex(
+      (item) =>
+        item.name.trim().toLowerCase() === foldername.toLowerCase().trim()
+    );
+    if (isFolder !== -1) {
+      return res.status(400).json({
+        message: "Folder already exists",
+      });
+    }
+
+    data.folders.push({ name: foldername });
+    await data.save();
+
+    return res.status(201).json({
+      message: "Folder created successfully",
     });
+  } catch (err) {
+    console.log(err);
+    return res.status(500);
   }
-
-  const isAuthUser = isAuth(user, data);
-
-  //check if user is authorised to edit
-  if (!isAuthUser && !isAuthUser.isEditor) {
-    return res.status(403).json({
-      message: "You're not authorised to edit this workspace",
-    });
-  }
-
-  const isFolder = data.folders.findIndex(
-    (item) => item.name.trim().toLowerCase() === foldername.toLowerCase().trim()
-  );
-  if (isFolder !== -1) {
-    return res.status(400).json({
-      message: "Folder already exists",
-    });
-  }
-
-  data.folders.push({ name: foldername });
-  await data.save();
-
-  return res.status(201).json({
-    message: "Folder created successfully",
-  });
 });
 
 //DELETE A FOLDER
@@ -168,32 +166,35 @@ router.delete("/folder/:workspace/:folder", verify, async (req, res) => {
   const { user } = req;
   const { workspace, folder } = req.params;
 
-  let data = await Workspace.findById(workspace);
+  try {
+    let data = await Workspace.findById(workspace);
 
-  const isAuthUser = isAuth(user, data);
-  //check if user is authorised to edit
-  if (!isAuthUser && !isAuthUser.isEditor) {
-    return res.status(403).json({
-      message: "You're not authorised to edit this workspace",
+    const isAuthUser = isAuth(user, data);
+    //check if user is authorised to edit
+    if (!isAuthUser && !isAuthUser.isEditor) {
+      return res.status(403).json({
+        message: "You're not authorised to edit this workspace",
+      });
+    }
+    //check if folder exists
+    const isFolder = data.folders.findIndex(
+      (item) => item._id.toString() === folder
+    );
+    if (isFolder === -1) {
+      return res.status(404).json({
+        message: "Folder doesn't exists",
+      });
+    }
+    data.folders.splice(isFolder, 1);
+    await data.save();
+
+    return res.status(201).json({
+      message: "Folder deleted successfully",
     });
+  } catch (err) {
+    console.log(err);
+    return res.status(500);
   }
-  //check if folder exists
-  const isFolder = data.folders.findIndex(
-    (item) => item._id.toString() === folder
-  );
-  if (isFolder === -1) {
-    return res.status(404).json({
-      message: "Folder doesn't exists",
-    });
-  }
-
-  data.folders.splice(isFolder, 1);
-  await data.save();
-
-  return res.status(201).json({
-    message: "Folder deleted successfully",
-  });
 });
-
 
 module.exports = router;

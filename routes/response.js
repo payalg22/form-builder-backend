@@ -4,15 +4,14 @@ const router = express.Router();
 const verify = require("../middleware/auth");
 const { Form } = require("../schemas/form.schema");
 const { Response } = require("../schemas/response.schema");
+const isValidId = require("../middleware/validate");
 
-//TODO: test all
-router.get("/analytics/:id", verify, async (req, res) => {
+router.get("/analytics/:id", verify, isValidId, async (req, res) => {
   const { id } = req.params;
   const formId = new mongoose.Types.ObjectId(`${id}`);
   try {
     const responses = await Response.find({ form: formId }).select("-__v");
     const form = await Form.findById(formId);
-
     if (!responses.length) {
       return res.status(404).json({
         message: "No responses found",
@@ -39,8 +38,8 @@ router.get("/analytics/:id", verify, async (req, res) => {
   }
 });
 
-router.post("/new/:form", async (req, res) => {
-  const { form } = req.params;
+router.post("/new/:id", isValidId, async (req, res) => {
+  const form = req.params.id;
   const { name, email } = req.body;
   try {
     const isForm = await Form.findById(form);
@@ -68,18 +67,25 @@ router.post("/new/:form", async (req, res) => {
   }
 });
 
-router.put("/edit/:id", async (req, res) => {
+router.put("/edit/:id", isValidId, async (req, res) => {
   const { id } = req.params;
   const { field } = req.body;
   try {
     let response = await Response.findById(id);
-
     if (!response) {
       return res.status(404).json({
         message: "Response not added",
       });
     }
 
+    const isFieldPresent = response.fields.find((res) => {
+      res.label === field.label;
+    });
+    if (isFieldPresent) {
+      return res.status(409).json({
+        message: "Response already added",
+      });
+    }
     response.fields.push(field);
     response.submittedAt = new Date();
     const newResponse = await response.save();

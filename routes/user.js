@@ -5,15 +5,14 @@ const jwt = require("jsonwebtoken");
 const { User } = require("../schemas/user.schema");
 const verify = require("../middleware/auth");
 const { Workspace } = require("../schemas/workspace.schema");
+const isValidId = require("../middleware/validate");
 
 //REGISTER ROUTE
-//tested and working
 router.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
     const isUser = await User.findOne({ email });
-
     if (isUser) {
       return res.status(400).json({
         message: "User already exists. Please login",
@@ -50,109 +49,126 @@ router.post("/register", async (req, res) => {
 });
 
 //LOGIN ROUTE
-//tested and working
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
-  const isUser = await User.findOne({ email });
-  if (!isUser) {
-    return res.status(404).json({
-      message: "Invalid username or password",
+  try {
+    const isUser = await User.findOne({ email });
+    if (!isUser) {
+      return res.status(404).json({
+        message: "Invalid username or password",
+      });
+    }
+
+    const isValidPass = await bcrypt.compare(password, isUser.password);
+    if (!isValidPass) {
+      return res.status(400).json({
+        message: "Invalid username or password",
+      });
+    }
+
+    const payload = { id: isUser._id };
+    const token = jwt.sign(payload, process.env.JWT_SECRET);
+
+    return res.status(200).json({
+      message: "User logged in successfully",
+      token,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Something went wrong",
     });
   }
-
-  const isValidPass = await bcrypt.compare(password, isUser.password);
-  if (!isValidPass) {
-    return res.status(400).json({
-      message: "Invalid username or password",
-    });
-  }
-
-  const payload = { id: isUser._id };
-  const token = jwt.sign(payload, process.env.JWT_SECRET);
-
-  return res.status(200).json({
-    message: "User logged in successfully",
-    token,
-  });
 });
 
 //UPDATE USER ROUTE
 router.put("/update", verify, async (req, res) => {
   const { name, email, oldPassword, newPassword } = req.body;
   const { user } = req;
+  try {
+    var userData = await User.findById(user);
+    if (!userData) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
 
-  var userData = await User.findById(user);
+    let data = { name, email };
+    if (newPassword) {
+      const isValidPass = await bcrypt.compare(oldPassword, userData.password);
+      if (!isValidPass) {
+        return res.status(401).json({
+          message: "Invalid password, please try again",
+        });
+      }
+      const isSamePass = await bcrypt.compare(newPassword, userData.password);
+      if (isSamePass) {
+        return res.status(400).json({
+          message: "New password cannot be same as old password",
+        });
+      }
+      const hashedPass = await bcrypt.hash(newPassword, 10);
+      data = {
+        ...data,
+        password: hashedPass,
+      };
+    }
+    const response = await User.findByIdAndUpdate(user, data, {
+      new: true,
+      select: "name email",
+    });
 
-  if (!userData) {
-    return res.status(404).json({
-      message: "User not found",
+    return res.status(201).json(response);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Something went wrong",
     });
   }
-
-  var data = { name, email };
-
-  if (newPassword) {
-    const isValidPass = await bcrypt.compare(oldPassword, userData.password);
-    if (!isValidPass) {
-      return res.status(401).json({
-        message: "Invalid password, please try again",
-      });
-    }
-    const isSamePass = await bcrypt.compare(newPassword, userData.password);
-    if (isSamePass) {
-      return res.status(400).json({
-        message: "New password cannot be same as old password",
-      });
-    }
-    const hashedPass = await bcrypt.hash(newPassword, 10);
-    data = {
-      ...data,
-      password: hashedPass,
-    };
-  }
-
-  const response = await User.findByIdAndUpdate(user, data, { new: true, select: "name email" });
-
-  return res.status(201).json(response);
 });
 
 //GET USER DETAILS
 router.get("/", verify, async (req, res) => {
   const { user } = req;
+  try {
+    const userInfo = await User.findById(user).select(
+      "-password -__v -createdAt"
+    );
+    if (!userInfo) {
+      return res.status(404).json({
+        message: "user not found",
+      });
+    }
 
-  const userInfo = await User.findById(user).select(
-    "-password -__v -createdAt"
-  );
-
-  if (!userInfo) {
-    return res.status(404).json({
-      message: "user not found",
+    return res.status(200).json(userInfo);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Something went wrong",
     });
   }
-
-  return res.status(200).json(userInfo);
-});
-
-//GET ALL USERS
-router.get("/all", async (req, res) => {
-  const users = await User.find();
-
-  return res.status(200).json(users);
 });
 
 //CHECK IF USER EXISTS
-router.get("/isuser/:id", async (req, res) => {
+router.get("/isuser/:id", isValidId, async (req, res) => {
   const { id } = req.params;
   const isUser = await User.findById(id);
 
-  if (!isUser) {
-    return res.status(404).json({
-      message: "User not found",
+  try {
+    if (!isUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.status(200);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Something went wrong",
     });
   }
-
-  return res.status(200);
 });
 
 //CHANGE THEME
@@ -160,17 +176,25 @@ router.put("/theme/:theme", verify, async (req, res) => {
   const { user } = req;
   const { theme } = req.params;
 
-  let userInfo = await User.findById(user).select("-password -createdAt -__v");
-  if (!userInfo) {
-    return res.status(404).json({
-      message: "User not found",
+  try {
+    let userInfo = await User.findById(user).select(
+      "-password -createdAt -__v"
+    );
+    if (!userInfo) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+    userInfo.isDarkTheme = theme === "true" ? true : false;
+    userInfo = await userInfo.save();
+
+    return res.status(200).json(userInfo);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Something went wrong",
     });
   }
-
-  userInfo.isDarkTheme = theme === "true" ? true : false;
-  userInfo = await userInfo.save();
-
-  return res.status(200).json(userInfo);
 });
 
 module.exports = router;

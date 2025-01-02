@@ -4,9 +4,10 @@ const router = express.Router();
 const verify = require("../middleware/auth");
 const { Workspace } = require("../schemas/workspace.schema");
 const { Form } = require("../schemas/form.schema");
+const isValidId = require("../middleware/validate");
 
 //Get all the forms (only name) for specific folder
-router.get("/folder/:id", verify, async (req, res) => {
+router.get("/folder/:id", verify, isValidId, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -27,16 +28,13 @@ router.get("/folder/:id", verify, async (req, res) => {
 });
 
 //Create a blank form
-//Tested, works
 router.post("/new", verify, async (req, res) => {
-  const { user } = req;
   const { folderId, name, owner } = req.body;
 
   try {
     //If the owner is not the one creating the form, user id should be received
     const creator = new mongoose.Types.ObjectId(`${owner}`);
     const newId = new mongoose.Types.ObjectId(`${folderId}`);
-
     //Check if folder exists
     const isFolder = await Workspace.findOne(
       { "folders._id": newId },
@@ -50,7 +48,6 @@ router.post("/new", verify, async (req, res) => {
 
     //Check if form is already created
     const allForms = await Form.find({ folderId }).select("name");
-
     const isForm = allForms.find((form) => {
       return form.name.toLowerCase() === name.toLowerCase();
     });
@@ -81,14 +78,13 @@ router.post("/new", verify, async (req, res) => {
 });
 
 //Edit a form -- add fields
-router.patch("/edit/:id", verify, async (req, res) => {
+router.patch("/edit/:id", verify, isValidId, async (req, res) => {
   const { fields, name } = req.body;
   const { user } = req;
   const { id } = req.params;
 
   try {
     let form = await Form.findById(id);
-
     if (!form) {
       return res.status(404).json({
         message: "Form not found",
@@ -150,12 +146,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.delete("/:id", verify, async (req, res) => {
+router.delete("/:id", verify, isValidId, async (req, res) => {
   const { id } = req.params;
 
   try {
     const form = await Form.findById(id);
-
     if (!form) {
       return res.status(404).json({
         message: "Form not found",
@@ -173,7 +168,5 @@ router.delete("/:id", verify, async (req, res) => {
     });
   }
 });
-
-router.get("/analytics/:id", verify, async (req, res) => {});
 
 module.exports = router;
