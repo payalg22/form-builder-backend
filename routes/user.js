@@ -60,6 +60,12 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    if (isUser.googleId) {
+      return res.status(400).json({
+        message: "User registered with google",
+      });
+    }
+
     const isValidPass = await bcrypt.compare(password, isUser.password);
     if (!isValidPass) {
       return res.status(400).json({
